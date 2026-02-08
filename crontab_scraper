@@ -1,0 +1,29 @@
+# Crontab configuration for Ultra Scraper
+# Runs full scraper 4 times daily: 02:00, 10:00, 14:00, 18:00
+#
+# To install this crontab:
+# 1. Copy this file to server: /var/www/dataFlow/crontab_scraper
+# 2. Run: crontab /var/www/dataFlow/crontab_scraper
+# 3. Verify: crontab -l
+#
+# To check logs:
+# tail -f /var/www/dataFlow/logs/cron_scraper_*.log
+
+# Environment variables for cron
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=""
+
+# Ultra Scraper - Full run 4 times daily
+# Format: minute hour day month weekday command
+0 2 * * * /var/www/dataFlow/cron_scraper.sh
+0 10 * * * /var/www/dataFlow/cron_scraper.sh  
+0 14 * * * /var/www/dataFlow/cron_scraper.sh
+0 18 * * * /var/www/dataFlow/cron_scraper.sh
+
+# Optional: Run test scraper every hour during business hours (9-17h)
+# 0 9-17 * * * /var/www/dataFlow/cron_scraper_test.sh
+
+# Optional: Cleanup old files at midnight
+# 0 0 * * * find /var/www/dataFlow/logs -name "*.log" -mtime +7 -delete
+# 0 0 * * * find /var/www/dataFlow/storage/app/exports -name "*.xlsx" -mtime +7 -delete

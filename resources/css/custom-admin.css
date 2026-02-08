@@ -1,0 +1,36 @@
+/* public/css/custom-admin.css */
+.sidebar-logo {
+    letter-spacing: 2px;
+}
+.sidebar-link-active {
+    background: #f3f4f6 !important;
+    font-weight: bold;
+}
+.sidebar-link {
+    transition: background 0.2s;
+}
+.sidebar-link:hover {
+    background: #e5e7eb;
+    color: #111827;
+}
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    border-radius: 6px;
+    color: #374151;
+    font-size: 16px;
+    margin-bottom: 2px;
+}
+.sidebar-link-active {
+    background: #e0e7ff !important;
+    color: #3730a3 !important;
+    font-weight: bold;
+}
+.sidebar-link:hover {
+    background: #f3f4f6;
+    color: #111827;
+}
+.sidebar-logo {
+    letter-spacing: 2px;
+}

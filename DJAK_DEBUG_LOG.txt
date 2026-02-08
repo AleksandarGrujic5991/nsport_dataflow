@@ -1,0 +1,13 @@
+[2025-11-11 16:24:44.103] === TEST: SKRIPTA POKRENUTA ===
+[2025-11-11 16:24:44.103] TEST: Working directory: /var/www/dataFlow
+[2025-11-11 16:24:44.104] === TEST: --ultra-parallel ARGUMENT DETEKTOVAN ===
+[2025-11-11 16:24:44.104] TEST: sys.argv = ['python_scraper/run_ultra_scraper.py', '--ultra-parallel', '--stores', 'djak']
+[2025-11-11 16:24:44.146] === TEST: run_store_by_store POZVANA ===
+[2025-11-11 16:24:44.146] TEST: stores=['djak'], test_mode=False
+[2025-11-11 16:24:44.146] === DJAK WAVE ZAPOČET ===
+[2025-11-11 16:24:44.146] WAVE 1: Pokrecem djak_universal (djak SEKVENCIJALNO - PRIORITET)
+[2025-11-11 16:24:44.146] DJAK: Ukupno kategorija za obradu: 3
+[2025-11-11 16:24:44.147] DJAK: Početak foreach petlje
+[2025-11-11 16:24:44.147] ARENA: Pokrecem djak_universal_cat1 SEKVENCIJALNO (1/3): https://www.djaksport.com/deca
+[2025-11-11 16:24:44.147] DJAK: Pre try/except bloka za kategoriju 1
+[2025-11-11 16:24:44.147] DJAK: Pozivam run_universal_selenium_instance_category za djak_universal_cat1

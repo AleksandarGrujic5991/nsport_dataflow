@@ -1,0 +1,22 @@
+# JEDNOSTAVAN CRONTAB - SVE PRODAVNICE
+# Pokreće scraper 4 puta dnevno pomoću simple_cron.sh
+#
+# Za instalaciju:
+# 1. Kopiraj na server: /var/www/dataFlow/simple_cron.sh
+# 2. Napravi executable: chmod +x /var/www/dataFlow/simple_cron.sh
+# 3. Instaliraj crontab: crontab /var/www/dataFlow/simple_crontab
+# 4. Proveri: crontab -l
+#
+# Za logove:
+# tail -f /var/www/dataFlow/logs/simple_cron_*.log
+
+# Environment variables
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=""
+
+# SCRAPER - SVE PRODAVNICE - 4 puta dnevno
+0 2 * * * /var/www/dataFlow/simple_cron.sh
+0 10 * * * /var/www/dataFlow/simple_cron.sh  
+0 14 * * * /var/www/dataFlow/simple_cron.sh
+0 18 * * * /var/www/dataFlow/simple_cron.sh
