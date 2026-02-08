@@ -64,6 +64,7 @@ SCRIPTS = [
     "python_scraper/scraper_nselection.py",
     "python_scraper/scraper_intersport.py",
     "python_scraper/scraper_trendmaker.py",
+    "python_scraper/scraper_etsport.py",
 ]
 
 STORE_ID_MAP = {
@@ -78,6 +79,8 @@ STORE_ID_MAP = {
     "9": "lacoste",       # NSport Lacoste
     "10": "nselection",   # N Selection
     "11": "intersport",   # Intersport (nova)
+    "12": "trendmaker",   # Trendmaker
+    "13": "etsport",      # ETSport (nova)
     "12": "trendmaker"    # Trendmaker (nova)
 }
 
