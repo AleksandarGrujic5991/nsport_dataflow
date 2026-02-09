@@ -191,7 +191,8 @@ class ProductApiController extends Controller
             '9' => 'lacoste',
             '10' => 'nselection',
             '11' => 'intersport',
-            '12' => 'trendmaker'
+            '12' => 'trendmaker',
+            '13' => 'etsport'
         ];
 
         if ($stores === 'full') {
