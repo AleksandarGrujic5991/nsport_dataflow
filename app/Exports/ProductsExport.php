@@ -45,9 +45,9 @@ class ProductsExport implements FromArray, WithStyles, WithColumnWidths, WithDef
             }
         }
         
-        // Zatim dodaj ostale prodavnice (1-6) 
+        // Zatim dodaj ostale prodavnice (sve ostale: 1-6, 13+) 
         foreach ($storeIds as $storeId) {
-            if ($storeId >= 1 && $storeId <= 6) {
+            if ($storeId < 7 || $storeId > 12) {
                 $header[] = $storeNames[$storeId];
             }
         }
@@ -95,9 +95,9 @@ class ProductsExport implements FromArray, WithStyles, WithColumnWidths, WithDef
                     }
                 }
                 
-                // Zatim dodaj ostale prodavnice (1-6)
+                // Zatim dodaj ostale prodavnice (sve ostale: 1-6, 13+)
                 foreach ($storeIds as $storeId) {
-                    if ($storeId >= 1 && $storeId <= 6) {
+                    if ($storeId < 7 || $storeId > 12) {
                         $price = $product->prices->where('store_id', $storeId)->first();
                         if ($price) {
                             // Srpski format: 16.490,00 (tačka za hiljade, zarez za decimale)

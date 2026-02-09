@@ -165,22 +165,16 @@ def extract_product_data(product_div):
             except:
                 discount_percent = 0
         
-        # Kreiraj objekat proizvoda
+        # Kreiraj objekat proizvoda - samo neophodna polja kao ExtraSport
         product = {
             'code': product_code or product_id,
             'naziv': product_name.strip() if product_name else '',
             'brand': product_brand.strip() if product_brand else '',
-            'category': product_category.strip() if product_category else '',
-            'price': current_price,
-            'price_regular': old_price,
-            'price_discount': current_price if discount_percent > 0 else None,
-            'price_old': old_price,
-            'discount_percentage': discount_percent,
-            'url': product_url,
-            'image_url': image_url,
-            'store_id': STORE_ID,
-            'in_stock': True,  # ETSport prikazuje samo dostupne proizvode na listi
-            'scraped_at': time.strftime('%Y-%m-%d %H:%M:%S')
+            'price': float(current_price) if current_price is not None else 0.0,
+            'price_regular': float(old_price) if old_price is not None else None,
+            'price_discount': float(current_price) if discount_percent > 0 else None,
+            'price_old': float(old_price) if old_price is not None else None,
+            'store_id': STORE_ID
         }
         
         return product
@@ -239,11 +233,20 @@ def send_to_api(products):
         print("[INFO] Nema proizvoda za slanje")
         return
     
+    print(f"[DEBUG] API URL: {API_URL}")
+    print(f"[DEBUG] Ukupno proizvoda za slanje: {len(products)}")
+    print(f"[DEBUG] Batch size: {BATCH_SIZE}")
+    
+    # Ispis prvog proizvoda za proveru strukture
+    if products:
+        print(f"[DEBUG] Primer proizvoda: {json.dumps(products[0], ensure_ascii=False, indent=2)}")
+    
     try:
         for i in range(0, len(products), BATCH_SIZE):
             batch = products[i:i + BATCH_SIZE]
             
             print(f"[API] Šaljem batch {i//BATCH_SIZE + 1} sa {len(batch)} proizvoda...")
+            print(f"[DEBUG] Batch data size: {len(json.dumps(batch))} bytes")
             
             response = requests.post(
                 API_URL, 
@@ -252,16 +255,22 @@ def send_to_api(products):
                 timeout=30
             )
             
+            print(f"[DEBUG] Response status: {response.status_code}")
+            print(f"[DEBUG] Response headers: {dict(response.headers)}")
+            
             if response.status_code == 200:
                 print(f"[API] Uspešno poslano {len(batch)} proizvoda")
+                print(f"[DEBUG] Response: {response.text[:200]}")
             else:
-                print(f"[ERROR] API error {response.status_code}: {response.text}")
+                print(f"[ERROR] API error {response.status_code}: {response.text[:500]}")
             
             # Kratka pauza između batch-eva
             time.sleep(0.5)
             
     except Exception as e:
         print(f"[ERROR] Sending to API: {e}")
+        import traceback
+        traceback.print_exc()
 
 def save_to_json(products, filename):
     """Sačuva proizvode u JSON fajl"""
@@ -274,9 +283,16 @@ def save_to_json(products, filename):
 
 def main():
     """Glavna funkcija"""
-    print(f"[INFO] Pokretanje ETSport scrapora...")
+    print(f"[INFO] ============= ETSport Scraper Start =============")
+    print(f"[INFO] Platform: {platform.system()}")
+    print(f"[INFO] Python version: {sys.version}")
+    print(f"[INFO] Working directory: {os.getcwd()}")
     print(f"[INFO] Store ID: {STORE_ID}")
+    print(f"[INFO] API URL: {API_URL}")
     print(f"[INFO] Kategorije: {len(CATEGORY_URLS)}")
+    print(f"[INFO] Limit: {args.limit if args.limit else 'None'}")
+    print(f"[INFO] Output file: {output_file if output_file else 'API'}")
+    print(f"[INFO] ================================================\n")
     
     all_products = []
     
@@ -313,14 +329,17 @@ def main():
             break
     
     print(f"\n[SUMMARY] Ukupno pronađeno {len(all_products)} proizvoda")
+    print(f"[DEBUG] Collected products from {len(set([p.get('category', 'Unknown') for p in all_products]))} categories")
     
     if output_file:
+        print(f"[INFO] Čuvam u fajl: {output_file}")
         save_to_json(all_products, output_file)
     else:
+        print(f"[INFO] Šaljem u API...")
         # Pošalji u API
         send_to_api(all_products)
     
-    print("[INFO] ETSport scraper završen!")
+    print("[INFO] ============= ETSport scraper završen! =============\n")
 
 if __name__ == "__main__":
     main()

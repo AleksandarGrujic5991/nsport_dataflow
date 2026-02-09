@@ -265,6 +265,17 @@ SCRAPER_CATEGORIES = {
         'https://www.trendmaker.rs/aksesoari?filter_submited=1&show_filters=1&filters[Pol][]=Deca',
         'https://www.trendmaker.rs/sportska-oprema?filter_submited=1&show_filters=1&filters[Pol][]=Deca',
     ],
+    'scraper_etsport.py': [
+        'https://www.etsport.rs/obuca/muskarci/',
+        'https://www.etsport.rs/odeca/muskarci/',
+        'https://www.etsport.rs/aksesoari/muskarci/',
+        'https://www.etsport.rs/obuca/zene/',
+        'https://www.etsport.rs/odeca/zene/',
+        'https://www.etsport.rs/aksesoari/zene/',
+        'https://www.etsport.rs/obuca/deca/',
+        'https://www.etsport.rs/odeca/deca/',
+        'https://www.etsport.rs/aksesoari/deca/',
+    ],
 }
 
 def clear_database():
@@ -587,7 +598,7 @@ class UltraScraperOrchestrator:
 
     def discover_scrapers(self):
         """POKRENI SVE DOSTUPNE SKRIPTOVE - KOMPLETNA LISTA!"""
-        # BS4 skriptovi (8) - brzi concurrent scraping 
+        # BS4 skriptovi (9) - brzi concurrent scraping 
         bs4_scrapers = [
             ('bs4_buzz', 'scraper_buzz.py'),
             ('bs4_extrasport', 'scraper_extrasport.py'),
@@ -596,6 +607,7 @@ class UltraScraperOrchestrator:
             ('bs4_nselection', 'scraper_nselection.py'),
             ('bs4_intersport', 'scraper_intersport.py'),
             ('bs4_trendmaker', 'scraper_trendmaker.py'),
+            ('bs4_etsport', 'scraper_etsport.py'),
         ]
         
         # Fashion uvek postoji
@@ -615,13 +627,14 @@ class UltraScraperOrchestrator:
         ]
         
         print(f"DISCOVERED SCRAPERS:")
-        print(f"   BS4: {len(bs4_scrapers)} scrapers (Buzz, Extrasport, Sportvision, NSport, N Selection, Intersport, Trendmaker)")
+        print(f"   BS4: {len(bs4_scrapers)} scrapers (Buzz, Extrasport, Sportvision, NSport, N Selection, Intersport, Trendmaker, ETSport)")
         print(f"   Selenium: {len(selenium_scrapers)} scrapers")
         print(f"   Planeta: 2 variants (universal, product_pages)")
         print(f"   Djak: 1 scraper")
         print(f"   NSport family: 6 stores with unique IDs (7-12)")
         print(f"     - NSport glavna (7), NFashion (8), Lacoste (9)")
         print(f"     - N Selection (10), Intersport (11), Trendmaker (12)")
+        print(f"   ETSport: Store ID 13")
         print(f"   Fashion: {'OK' if fashion_found else 'NOT FOUND'}")
         
         return bs4_scrapers, fashion_found, selenium_scrapers
