@@ -453,6 +453,23 @@ def extract_sifra(naziv, product_element=None):
     # PRIORITET 3: Ako nista ne radi, ici ce u fajl (return '')
     return ''
 
+def extract_cnstrc_sifra(naziv):
+    """Ekstraktuje šifru iz novog Planeta naziva pre # veličine."""
+    if not naziv:
+        return ''
+
+    match = re.search(r'\s-\s+([A-Za-z0-9]+(?:-[A-Za-z0-9]+)+)(?:#|\s*$)', naziv.strip())
+    return match.group(1).upper() if match else ''
+
+def extract_product_url(product, category_url):
+    """Proba više selektora za link ka proizvodu (stara i nova HTML struktura),
+    uz fallback na category_url ako nijedan ne postoji."""
+    for selector in ('a.product-item-photo', 'strong.product-item-name a', 'a.product-item-link', 'a[href]'):
+        link = product.select_one(selector)
+        if link and link.get('href'):
+            return link.get('href')
+    return category_url
+
 def is_valid_sifra(code):
     if not code:
         return False
@@ -517,7 +534,7 @@ def scrape_category(category_url, driver, limit=None, all_products=None):
     # Loading initial category page
     driver.get(category_url)
     WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, 'li.item.product.product-item'))
+        EC.presence_of_element_located((By.CSS_SELECTOR, 'li#nistruct-constr-li-item, li.item.product.product-item'))
     )
     time.sleep(3)
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -543,7 +560,7 @@ def scrape_category(category_url, driver, limit=None, all_products=None):
         try:
             driver.get(url)
             WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, 'li.item.product.product-item'))
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'li#nistruct-constr-li-item, li.item.product.product-item'))
             )
         except Exception as e:
             print(f"[ERROR] Failed to load page {page}: {e}")
@@ -552,21 +569,26 @@ def scrape_category(category_url, driver, limit=None, all_products=None):
         time.sleep(2)
         html = driver.page_source
         soup = BeautifulSoup(html, 'html.parser')
-        products = soup.select('li.item.product.product-item')
+        products = soup.select('li#nistruct-constr-li-item, li.item.product.product-item')
         products_on_page = len(products)  # ukupno proizvoda na strani
         total_products_found += products_on_page  # dodaj u ukupan broj
 
         for i, product in enumerate(products):
             try:
-                name_tag = product.select_one('strong.product-item-name a')
-                naziv = name_tag.text.strip() if name_tag else ''
-                product_url = name_tag.get('href') if name_tag else category_url
-                
-                # Proveri title atribut za pun naziv
-                if name_tag and name_tag.get('title'):
-                    full_naziv = name_tag.get('title').strip()
-                    if len(full_naziv) > len(naziv):
-                        naziv = full_naziv
+                # Prvo proveri data-cnstrc atribute (novi format sajta)
+                naziv = product.get('data-cnstrc-item-name', '').strip()
+                product_url = extract_product_url(product, category_url)
+
+                # Ako nema data atributa, koristi staru logiku
+                if not naziv:
+                    name_tag = product.select_one('strong.product-item-name a')
+                    naziv = name_tag.text.strip() if name_tag else ''
+
+                    # Proveri title atribut za pun naziv
+                    if name_tag and name_tag.get('title'):
+                        full_naziv = name_tag.get('title').strip()
+                        if len(full_naziv) > len(naziv):
+                            naziv = full_naziv
 
                 # Dodaj brand:
                 brand = naziv.split()[0] if naziv else None
@@ -606,6 +628,9 @@ def scrape_category(category_url, driver, limit=None, all_products=None):
 
                 # POKUSAJ EKSTRAKTOVANJA SIFRE SA URL VALIDACIJOM
                 sifra = extract_sifra(naziv, product)
+                cnstrc_sifra = extract_cnstrc_sifra(product.get('data-cnstrc-item-name', ''))
+                if cnstrc_sifra:
+                    sifra = cnstrc_sifra
                 if sifra:
                     # DODATNA VALIDACIJA: proveri da li se sifra poklapa sa URL-om
                     if product_url and compare_url_with_name_sifra(product_url, sifra):
