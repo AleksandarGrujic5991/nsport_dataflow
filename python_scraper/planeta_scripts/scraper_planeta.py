@@ -19,6 +19,7 @@ import uuid
 import platform
 import signal
 import atexit
+import random
 
 # Argument parsing
 parser = argparse.ArgumentParser()
@@ -588,13 +589,27 @@ def scrape_category(category_url, driver, limit=None, all_products=None):
             # i blokira drugi zahtev ("Attention Required!"), pa se html/soup ovde ne diraju.
             pass
         else:
-            try:
-                driver.get(url)
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, 'li#nistruct-constr-li-item, li.item.product.product-item'))
-                )
-            except Exception as e:
-                print(f"[ERROR] Failed to load page {page}: {e}")
+            # Pauza izmedju strana - Cloudflare blokira prebrz prelazak sa strane na stranu
+            # u istoj sesiji (potvrdjeno testom), pa usporavamo da lici na covekov tempo.
+            time.sleep(random.uniform(4, 7))
+
+            page_loaded = False
+            for attempt in range(2):
+                if attempt > 0:
+                    backoff = random.uniform(8, 14)
+                    print(f"[RETRY] Strana {page}: cekam {backoff:.1f}s pre ponovnog pokusaja...")
+                    time.sleep(backoff)
+                try:
+                    driver.get(url)
+                    WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, 'li#nistruct-constr-li-item, li.item.product.product-item'))
+                    )
+                    page_loaded = True
+                    break
+                except Exception as e:
+                    print(f"[ERROR] Failed to load page {page} (pokusaj {attempt + 1}/2): {e}")
+
+            if not page_loaded:
                 break
 
             time.sleep(2)
