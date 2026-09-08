@@ -582,18 +582,24 @@ def scrape_category(category_url, driver, limit=None, all_products=None):
         print(f"[LOG] Scrape strana {page}/{max_page} | {url}")
         products_on_page = 0  # ukupni proizvodi na strani
         valid_products_on_page = 0  # validni proizvodi dodani
-        try:
-            driver.get(url)
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, 'li#nistruct-constr-li-item, li.item.product.product-item'))
-            )
-        except Exception as e:
-            print(f"[ERROR] Failed to load page {page}: {e}")
-            break
+        if page == 1:
+            # Strana 1 je vec ucitana gore (za brojanje paginacije) - NE gadjaj je ponovo.
+            # Cloudflare tretira identican URL zatrazen dvaput za par sekundi kao bot obrazac
+            # i blokira drugi zahtev ("Attention Required!"), pa se html/soup ovde ne diraju.
+            pass
+        else:
+            try:
+                driver.get(url)
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, 'li#nistruct-constr-li-item, li.item.product.product-item'))
+                )
+            except Exception as e:
+                print(f"[ERROR] Failed to load page {page}: {e}")
+                break
 
-        time.sleep(2)
-        html = driver.page_source
-        soup = BeautifulSoup(html, 'html.parser')
+            time.sleep(2)
+            html = driver.page_source
+            soup = BeautifulSoup(html, 'html.parser')
         products = soup.select('li#nistruct-constr-li-item, li.item.product.product-item')
         products_on_page = len(products)  # ukupno proizvoda na strani
         total_products_found += products_on_page  # dodaj u ukupan broj
