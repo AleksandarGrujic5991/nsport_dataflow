@@ -490,6 +490,38 @@ def get_chrome_binary_and_version():
             continue
     return None, None
 
+UC_DRIVER_LOCK_FILE = os.path.join(tempfile.gettempdir(), 'planeta_uc_chromedriver.lock')
+
+def acquire_uc_driver_lock(timeout=180, stale_after=120):
+    """Vise Planeta kategorija se pokrece paralelno (jedan proces po kategoriji), a
+    undetected-chromedriver prvi put kad se pokrene za odredjenog korisnika (npr.
+    www-data preko admin panela) mora da preuzme i 'zakrpi' chromedriver binarni fajl
+    na disku. Ako vise procesa to radi ISTOVREMENO, dolazi do race condition-a i
+    'Remote end closed connection without response' greske. Ova brava obezbedjuje da
+    samo jedan proces radi tu inicijalizaciju u datom trenutku, dok ostali sacekaju."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            fd = os.open(UC_DRIVER_LOCK_FILE, os.O_CREAT | os.O_EXCL | os.O_RDWR)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            return True
+        except FileExistsError:
+            try:
+                if time.time() - os.path.getmtime(UC_DRIVER_LOCK_FILE) > stale_after:
+                    os.remove(UC_DRIVER_LOCK_FILE)  # zaostala brava od procesa koji je pukao
+                    continue
+            except OSError:
+                continue
+            time.sleep(random.uniform(1, 3))
+    return False
+
+def release_uc_driver_lock():
+    try:
+        os.remove(UC_DRIVER_LOCK_FILE)
+    except OSError:
+        pass
+
 def extract_cnstrc_sifra(naziv):
     """Ekstraktuje šifru iz novog Planeta naziva pre # veličine."""
     if not naziv:
@@ -857,7 +889,15 @@ def main():
         uc_kwargs = {'options': options, 'version_main': chrome_major_version}
         if chrome_binary_path:
             uc_kwargs['browser_executable_path'] = chrome_binary_path
-        global_driver = uc.Chrome(**uc_kwargs)
+
+        got_lock = acquire_uc_driver_lock()
+        if not got_lock:
+            print("[WARNING] Nisam dobio uc_driver_lock na vreme, pokusavam bez brave...")
+        try:
+            global_driver = uc.Chrome(**uc_kwargs)
+        finally:
+            if got_lock:
+                release_uc_driver_lock()
         log_step("STEP 11a: Chrome driver created successfully")
         for idx, category_url in enumerate(categories_to_process, 1):
             try:
