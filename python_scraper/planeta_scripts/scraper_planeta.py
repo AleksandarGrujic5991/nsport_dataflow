@@ -110,19 +110,18 @@ signal.signal(signal.SIGTERM, signal_handler)
 atexit.register(cleanup_driver)
 
 # SELENIUM SETUP
-options = webdriver.ChromeOptions()
-if '--headless' in sys.argv or args.headless:
-    options.add_argument('--headless')
-
-# Selenium setup
 log_step("STEP 2: Setting up Chrome options")
 options = Options()
-if args.headless or platform.system().lower() != "windows":
+# NAPOMENA: headless=new Chrome fingerprint trigeruje Cloudflare blokadu na planetasport.rs
+# (potvrdjeno testom na serveru - headless dobija "Attention Required! | Cloudflare",
+# a ne-headless Chrome pod Xvfb-om dobija pravu stranicu). Zato se headless NE prisiljava
+# vise automatski na Linuxu - koristi se samo ako je eksplicitno trazeno preko --headless.
+if args.headless:
     options.add_argument('--headless=new')
+    options.add_argument('--disable-gpu')  # samo uz headless - menja WebGL fingerprint, testiran uspesan slucaj ga nije imao
     log_step("STEP 2a: Headless mode enabled")
 options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
-options.add_argument('--disable-gpu')
 options.add_argument('--window-size=1920,1080')
 # options.add_argument('--remote-debugging-port=0')  # Bitno za DevToolsActivePort
 

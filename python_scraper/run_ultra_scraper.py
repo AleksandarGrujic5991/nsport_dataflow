@@ -756,7 +756,11 @@ class UltraScraperOrchestrator:
                 args = ['xvfb-run', '-a', python_executable, str(full_path)]
             else:
                 args = [python_executable, str(full_path)]
-            args.append('--headless')
+            # Planeta: NE saljemo --headless. Cloudflare blokira headless=new fingerprint
+            # (potvrdjeno testom - headless dobija "Attention Required! | Cloudflare"),
+            # dok ne-headless Chrome pod Xvfb-om (gornji xvfb-run wrapper) prolazi normalno.
+            if 'planeta' not in instance_name:
+                args.append('--headless')
             args.extend(['--category', category_url])
             # No JSON output needed - scraper writes directly to database via API
 
