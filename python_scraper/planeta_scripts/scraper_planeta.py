@@ -1,8 +1,5 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
+import undetected_chromedriver as uc
 from bs4 import BeautifulSoup
 import time
 from selenium.webdriver.support.ui import WebDriverWait
@@ -112,7 +109,7 @@ atexit.register(cleanup_driver)
 
 # SELENIUM SETUP
 log_step("STEP 2: Setting up Chrome options")
-options = Options()
+options = uc.ChromeOptions()
 # NAPOMENA: headless=new Chrome fingerprint trigeruje Cloudflare blokadu na planetasport.rs
 # (potvrdjeno testom na serveru - headless dobija "Attention Required! | Cloudflare",
 # a ne-headless Chrome pod Xvfb-om dobija pravu stranicu). Zato se headless NE prisiljava
@@ -148,13 +145,6 @@ tmp_dir = tempfile.gettempdir()
 #         os.makedirs(user_data_dir, exist_ok=True)
 # else:
 #     os.makedirs(user_data_dir, exist_ok=True)
-
-try:
-    chromedriver_path = ChromeDriverManager().install()
-    service = Service(chromedriver_path)
-except Exception as e:
-    print(f"[ERROR] ChromeDriver installation failed: {e}")
-    raise
 
 limit = args.limit if hasattr(args, 'limit') else None
 
@@ -841,7 +831,7 @@ def main():
     # Creating Chrome driver instance
     global global_driver
     try:
-        global_driver = webdriver.Chrome(service=service, options=options)
+        global_driver = uc.Chrome(options=options)
         log_step("STEP 11a: Chrome driver created successfully")
         for idx, category_url in enumerate(categories_to_process, 1):
             try:
