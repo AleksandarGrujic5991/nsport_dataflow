@@ -17,6 +17,7 @@ import platform
 import signal
 import atexit
 import random
+import subprocess
 
 # Argument parsing
 parser = argparse.ArgumentParser()
@@ -469,6 +470,21 @@ def extract_sifra(naziv, product_element=None):
     # PRIORITET 3: Ako nista ne radi, ici ce u fajl (return '')
     return ''
 
+def get_chrome_major_version():
+    """Otkrij glavnu verziju instaliranog Chrome-a, da bi undetected-chromedriver
+    skinuo odgovarajuci chromedriver umesto najnovijeg dostupnog (koji moze biti
+    neusaglasen sa stvarno instaliranim Chrome-om na serveru)."""
+    candidates = ['google-chrome', 'google-chrome-stable', 'chromium-browser', 'chromium']
+    for name in candidates:
+        try:
+            out = subprocess.check_output([name, '--version'], stderr=subprocess.DEVNULL, text=True)
+            match = re.search(r'(\d+)\.', out)
+            if match:
+                return int(match.group(1))
+        except Exception:
+            continue
+    return None
+
 def extract_cnstrc_sifra(naziv):
     """Ekstraktuje šifru iz novog Planeta naziva pre # veličine."""
     if not naziv:
@@ -831,7 +847,9 @@ def main():
     # Creating Chrome driver instance
     global global_driver
     try:
-        global_driver = uc.Chrome(options=options)
+        chrome_major_version = get_chrome_major_version()
+        print(f"[LOG] Detektovana Chrome verzija: {chrome_major_version}")
+        global_driver = uc.Chrome(options=options, version_main=chrome_major_version)
         log_step("STEP 11a: Chrome driver created successfully")
         for idx, category_url in enumerate(categories_to_process, 1):
             try:
