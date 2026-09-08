@@ -727,6 +727,16 @@ def scrape_category(category_url, driver, limit=None, all_products=None):
                     cat_count += 1
                     valid_products_on_page += 1
 
+                    if limit and cat_count >= limit:
+                        print(f"[LOG] Limit od {limit} proizvoda dostignut, prekidam kategoriju.")
+                        if batch:
+                            try:
+                                requests.post(API_URL, json=batch, headers={'Accept': 'application/json'})
+                            except Exception:
+                                pass
+                        print(f"[LOG] Category completed: {cat_count} products added")
+                        return cat_count
+
                     if len(batch) >= BATCH_SIZE:
                         try:
                             response = requests.post(API_URL, json=batch, headers={'Accept': 'application/json'})
@@ -816,7 +826,7 @@ def main():
         for idx, category_url in enumerate(categories_to_process, 1):
             try:
                 print(f"Processing category {idx}/{len(categories_to_process)}: {category_url}")
-                cat_products = scrape_category(category_url, global_driver, None, all_products)
+                cat_products = scrape_category(category_url, global_driver, limit, all_products)
                 total_products += cat_products
                 print(f"Category {idx} completed: {cat_products} products")
             except Exception as e:
