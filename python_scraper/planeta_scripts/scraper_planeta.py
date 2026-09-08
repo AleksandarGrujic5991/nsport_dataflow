@@ -29,12 +29,38 @@ parser.add_argument('--output', type=str, help='Output JSON file')
 parser.add_argument('--instance', type=int, help='Instance number')
 args = parser.parse_args()
 
-# Minimal logging for production
-def log_step(message, details=None):
-    """Minimal logging - only for critical steps"""
-    pass  # No-op for performance
-
 import sys
+
+# DEBUG LOGGING: sve sto ide na stdout/stderr (svi print-ovi u skripti)
+# takodje se upisuje u fajl u logs/ folderu, da bi se moglo analizirati
+# posle pokretanja na serveru (run_ultra_scraper.py sece output na par stotina karaktera).
+LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
+_log_file_path = os.path.join(LOG_DIR, f"planeta_debug_{time.strftime('%Y%m%d_%H%M%S')}_pid{os.getpid()}.log")
+_log_file = open(_log_file_path, 'a', encoding='utf-8')
+
+class _Tee:
+    def __init__(self, *streams):
+        self.streams = streams
+    def write(self, data):
+        for s in self.streams:
+            s.write(data)
+            s.flush()
+    def flush(self):
+        for s in self.streams:
+            s.flush()
+
+sys.stdout = _Tee(sys.stdout, _log_file)
+sys.stderr = _Tee(sys.stderr, _log_file)
+print(f"[DEBUG-LOG] Log fajl: {_log_file_path}")
+
+def log_step(message, details=None):
+    """Ispisuje korak sa timestamp-om (i u konzolu i u log fajl)."""
+    ts = time.strftime('%H:%M:%S')
+    if details:
+        print(f"[{ts}] {message} | {details}")
+    else:
+        print(f"[{ts}] {message}")
 
 if '--category' in sys.argv:
     idx = sys.argv.index('--category')
