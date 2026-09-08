@@ -470,20 +470,25 @@ def extract_sifra(naziv, product_element=None):
     # PRIORITET 3: Ako nista ne radi, ici ce u fajl (return '')
     return ''
 
-def get_chrome_major_version():
-    """Otkrij glavnu verziju instaliranog Chrome-a, da bi undetected-chromedriver
-    skinuo odgovarajuci chromedriver umesto najnovijeg dostupnog (koji moze biti
-    neusaglasen sa stvarno instaliranim Chrome-om na serveru)."""
+def get_chrome_binary_and_version():
+    """Nadji putanju do Chrome binarnog fajla i njegovu glavnu verziju iz ISTOG fajla,
+    da bi undetected-chromedriver dobio i binary_path i version_main koji se sigurno
+    poklapaju. Server moze imati vise instaliranih Chrome/Chromium varijanti (npr.
+    google-chrome paket + snap chromium) - ako se verzija cita sa jednog binarnog fajla
+    a uc pokrene drugi, dolazi do "ChromeDriver only supports Chrome version X" greske."""
     candidates = ['google-chrome', 'google-chrome-stable', 'chromium-browser', 'chromium']
     for name in candidates:
+        path = shutil.which(name)
+        if not path:
+            continue
         try:
-            out = subprocess.check_output([name, '--version'], stderr=subprocess.DEVNULL, text=True)
+            out = subprocess.check_output([path, '--version'], stderr=subprocess.DEVNULL, text=True)
             match = re.search(r'(\d+)\.', out)
             if match:
-                return int(match.group(1))
+                return path, int(match.group(1))
         except Exception:
             continue
-    return None
+    return None, None
 
 def extract_cnstrc_sifra(naziv):
     """Ekstraktuje šifru iz novog Planeta naziva pre # veličine."""
@@ -847,9 +852,12 @@ def main():
     # Creating Chrome driver instance
     global global_driver
     try:
-        chrome_major_version = get_chrome_major_version()
-        print(f"[LOG] Detektovana Chrome verzija: {chrome_major_version}")
-        global_driver = uc.Chrome(options=options, version_main=chrome_major_version)
+        chrome_binary_path, chrome_major_version = get_chrome_binary_and_version()
+        print(f"[LOG] Detektovan Chrome binary: {chrome_binary_path}, verzija: {chrome_major_version}")
+        uc_kwargs = {'options': options, 'version_main': chrome_major_version}
+        if chrome_binary_path:
+            uc_kwargs['browser_executable_path'] = chrome_binary_path
+        global_driver = uc.Chrome(**uc_kwargs)
         log_step("STEP 11a: Chrome driver created successfully")
         for idx, category_url in enumerate(categories_to_process, 1):
             try:
