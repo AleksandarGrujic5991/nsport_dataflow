@@ -470,12 +470,65 @@ def extract_sifra(naziv, product_element=None):
     # PRIORITET 3: Ako nista ne radi, ici ce u fajl (return '')
     return ''
 
+def _windows_chrome_binary_and_version():
+    """Windows varijanta detekcije. chrome.exe na Windowsu NE ispisuje verziju na
+    '--version' (samo se tiho pokrene), pa verziju citamo iz imena verzionog
+    podfoldera pored chrome.exe (npr. ...\\Application\\157.0.8103.38\\) i, kao
+    rezervu, iz registra (BLBeacon\\version)."""
+    paths = []
+    for env_var in ('PROGRAMFILES', 'PROGRAMFILES(X86)', 'LOCALAPPDATA'):
+        base = os.environ.get(env_var)
+        if base:
+            paths.append(os.path.join(base, 'Google', 'Chrome', 'Application', 'chrome.exe'))
+    which_path = shutil.which('chrome') or shutil.which('chrome.exe')
+    if which_path:
+        paths.insert(0, which_path)
+
+    for path in paths:
+        if not os.path.isfile(path):
+            continue
+        app_dir = os.path.dirname(path)
+        versions = []
+        try:
+            for entry in os.listdir(app_dir):
+                if re.fullmatch(r'\d+\.\d+\.\d+\.\d+', entry) and os.path.isdir(os.path.join(app_dir, entry)):
+                    versions.append(tuple(int(x) for x in entry.split('.')))
+        except OSError:
+            pass
+        if versions:
+            # Posle Chrome update-a pored starog ostane i nov verzioni folder, a
+            # chrome.exe se do restarta jos uvek pokrece kao STARA verzija, pa
+            # uzimamo najmanju (najstariju) da version_main odgovara onome sto se
+            # zapravo pokrene.
+            return path, min(versions)[0]
+        try:
+            import winreg
+            for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+                try:
+                    with winreg.OpenKey(root, r'Software\Google\Chrome\BLBeacon') as key:
+                        value, _ = winreg.QueryValueEx(key, 'version')
+                        match = re.match(r'(\d+)\.', value)
+                        if match:
+                            return path, int(match.group(1))
+                except OSError:
+                    continue
+        except Exception:
+            pass
+        return path, None
+    return None, None
+
+
 def get_chrome_binary_and_version():
     """Nadji putanju do Chrome binarnog fajla i njegovu glavnu verziju iz ISTOG fajla,
     da bi undetected-chromedriver dobio i binary_path i version_main koji se sigurno
     poklapaju. Server moze imati vise instaliranih Chrome/Chromium varijanti (npr.
     google-chrome paket + snap chromium) - ako se verzija cita sa jednog binarnog fajla
-    a uc pokrene drugi, dolazi do "ChromeDriver only supports Chrome version X" greske."""
+    a uc pokrene drugi, dolazi do "ChromeDriver only supports Chrome version X" greske.
+    Ako verziju ne uspemo da procitamo, vracamo None i uc sam pogadja (skine najnoviji
+    chromedriver), sto na masini sa starijim Chrome-om pukne vec pri startu."""
+    if platform.system().lower() == 'windows':
+        return _windows_chrome_binary_and_version()
+
     candidates = ['google-chrome', 'google-chrome-stable', 'chromium-browser', 'chromium']
     for name in candidates:
         path = shutil.which(name)
@@ -587,6 +640,46 @@ def is_valid_sifra(code):
 global_codes = set()
 global_duplikati_count = 0
 
+PRODUCT_LIST_SELECTOR = 'li#nistruct-constr-li-item, li.item.product.product-item'
+# Posle koliko strana zaredom bez proizvoda odustajemo od kategorije. Jedna blokirana
+# strana NE sme da ubije kategoriju - na Planeti su patike na kasnijim stranama obuce,
+# pa preskakanje jedne strane kosta 36 proizvoda, a prekid kategorije - sve patike.
+MAX_CONSECUTIVE_PAGE_FAILURES = 3
+
+
+def is_blocked_page(driver):
+    """Prepoznaj Cloudflare/WAF prepreku da bi se u logu videlo DA LI je strana
+    blokirana ili je samo HTML drugaciji."""
+    try:
+        title = (driver.title or '').lower()
+    except Exception:
+        return False
+    markers = ('attention required', 'just a moment', 'access denied',
+               'cloudflare', '403 forbidden', 'checking your browser')
+    return any(marker in title for marker in markers)
+
+
+def load_listing_page(driver, url, attempts=3, wait_seconds=15):
+    """Ucitaj kategorijsku stranu sa retry-em i rastucim backoff-om.
+    Vraca BeautifulSoup ili None ako nijedan pokusaj nije uspeo."""
+    for attempt in range(attempts):
+        if attempt > 0:
+            backoff = random.uniform(10, 18) * attempt
+            print(f"[RETRY] {url}: cekam {backoff:.1f}s pre pokusaja {attempt + 1}/{attempts}...")
+            time.sleep(backoff)
+        try:
+            driver.get(url)
+            WebDriverWait(driver, wait_seconds).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, PRODUCT_LIST_SELECTOR))
+            )
+            time.sleep(2)
+            return BeautifulSoup(driver.page_source, 'html.parser')
+        except Exception as e:
+            blocked = ' [CLOUDFLARE BLOCK]' if is_blocked_page(driver) else ''
+            print(f"[ERROR] Ne mogu da ucitam {url} (pokusaj {attempt + 1}/{attempts}){blocked}: {e}")
+    return None
+
+
 def scrape_category(category_url, driver, limit=None, all_products=None):
     global global_codes, global_duplikati_count
     print(f"[LOG] Scraping category: {category_url}")
@@ -600,16 +693,15 @@ def scrape_category(category_url, driver, limit=None, all_products=None):
     total_products_found = 0
 
     # --- LOG: pronadi maksimalnu stranicu na prvoj strani ---
-    # Loading initial category page
-    driver.get(category_url)
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, 'li#nistruct-constr-li-item, li.item.product.product-item'))
-    )
-    time.sleep(3)
+    # Loading initial category page (sa retry-em: ako prva strana pukne, cela
+    # kategorija bi bila izgubljena)
+    soup = load_listing_page(driver, category_url)
+    if soup is None:
+        print(f"[ERROR] Prva strana kategorije nije ucitana ni posle retry-a: {category_url}")
+        return 0
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
     time.sleep(2)
-    html = driver.page_source
-    soup = BeautifulSoup(html, 'html.parser')
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
     pagination = soup.select('ul.items.pages-items a.page')
     max_page = 1
     for a in pagination:
@@ -619,7 +711,30 @@ def scrape_category(category_url, driver, limit=None, all_products=None):
                 max_page = num
         except:
             continue
+
+    # FALLBACK: paginacija se renderuje JS-om (Constructor.io grid) i ume da nedostaje
+    # ili da prikaze samo "1 2 3 4 5 ... Sledeca" bez linka na zadnju stranu. Tada bi
+    # max_page ostao 1-5 i kategorija bi se zavrsila na prvim stranama - a na Planeti
+    # su prve strane obuce sezonske CIPELE, dok PATIKE pocinju od ~3. strane, pa bi
+    # patike kompletno ispale. Zato racunamo broj strana i iz brojaca "Artikli 1 - 36
+    # od 1557" koji stoji u HTML-u nezavisno od paginacije.
+    products_per_page = len(soup.select('li#nistruct-constr-li-item, li.item.product.product-item')) or 36
+    amount_pages = 0
+    amount_el = soup.select_one('.toolbar-amount .nistruct-number, .toolbar-amount')
+    if amount_el:
+        amount_numbers = re.findall(r'\d+', amount_el.get_text(' ', strip=True).replace('.', ''))
+        if amount_numbers:
+            total_items = int(amount_numbers[-1])  # poslednji broj je ukupan broj artikala
+            amount_pages = -(-total_items // products_per_page)  # ceil
+            print(f"[LOG] Ukupno artikala: {total_items}, po strani: {products_per_page} -> {amount_pages} strana")
+
+    if amount_pages > max_page:
+        print(f"[LOG] Paginacija ({max_page}) manja od izracunate ({amount_pages}) - koristim izracunatu")
+        max_page = amount_pages
+
     print(f"[LOG] Pronadjeno paginacija: {max_page} strana")
+
+    consecutive_page_failures = 0
 
     while page <= max_page:
         url = category_url if page == 1 else f'{category_url}?p={page}'
@@ -636,29 +751,22 @@ def scrape_category(category_url, driver, limit=None, all_products=None):
             # u istoj sesiji (potvrdjeno testom), pa usporavamo da lici na covekov tempo.
             time.sleep(random.uniform(4, 7))
 
-            page_loaded = False
-            for attempt in range(2):
-                if attempt > 0:
-                    backoff = random.uniform(8, 14)
-                    print(f"[RETRY] Strana {page}: cekam {backoff:.1f}s pre ponovnog pokusaja...")
-                    time.sleep(backoff)
-                try:
-                    driver.get(url)
-                    WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, 'li#nistruct-constr-li-item, li.item.product.product-item'))
-                    )
-                    page_loaded = True
+            page_soup = load_listing_page(driver, url)
+
+            if page_soup is None:
+                # PRESKOCI stranu, ne prekidaj kategoriju. Ranije je ovde bio `break`,
+                # pa je jedna blokirana strana obarala sve ostale strane kategorije -
+                # a kod obuce su patike upravo na kasnijim stranama.
+                consecutive_page_failures += 1
+                print(f"[SKIP] Strana {page} preskocena ({consecutive_page_failures}/{MAX_CONSECUTIVE_PAGE_FAILURES} neuspeha zaredom)")
+                if consecutive_page_failures >= MAX_CONSECUTIVE_PAGE_FAILURES:
+                    print(f"[ABORT] {MAX_CONSECUTIVE_PAGE_FAILURES} strane zaredom neuspesne - prekidam kategoriju na strani {page}")
                     break
-                except Exception as e:
-                    print(f"[ERROR] Failed to load page {page} (pokusaj {attempt + 1}/2): {e}")
+                page += 1
+                continue
 
-            if not page_loaded:
-                break
-
-            time.sleep(2)
-            html = driver.page_source
-            soup = BeautifulSoup(html, 'html.parser')
-        products = soup.select('li#nistruct-constr-li-item, li.item.product.product-item')
+            soup = page_soup
+        products = soup.select(PRODUCT_LIST_SELECTOR)
         products_on_page = len(products)  # ukupno proizvoda na strani
         total_products_found += products_on_page  # dodaj u ukupan broj
 
@@ -829,11 +937,19 @@ def scrape_category(category_url, driver, limit=None, all_products=None):
                 continue
 
         if products_on_page == 0:
-            print(f"[LOG] Nema proizvoda na strani {page}, prekidam.")
-            break
-        
+            # Prazna strana je najcesce prazno renderovan grid (JS nije stigao) ili
+            # blokada - probaj sledecu stranu, prekidaj samo ako se ponavlja.
+            consecutive_page_failures += 1
+            print(f"[LOG] Nema proizvoda na strani {page} ({consecutive_page_failures}/{MAX_CONSECUTIVE_PAGE_FAILURES} zaredom)")
+            if consecutive_page_failures >= MAX_CONSECUTIVE_PAGE_FAILURES:
+                print(f"[ABORT] {MAX_CONSECUTIVE_PAGE_FAILURES} prazne strane zaredom - prekidam kategoriju")
+                break
+            page += 1
+            continue
+
+        consecutive_page_failures = 0
         print(f"[LOG] Page {page}: {products_on_page} total, {valid_products_on_page} valid")
-        page += 1 
+        page += 1
 
     if batch:
         try:
